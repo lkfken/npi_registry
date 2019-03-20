@@ -1,20 +1,22 @@
 class Report
-  def initialize(providers:, taxonomy_data:)
+  def initialize(providers:, taxonomy_data:, primary_only: false)
     @providers = providers
     @taxonomy_data = taxonomy_data
+    @primary_only = primary_only
   end
 
   def rows
     @providers.inject(Array.new) do |a, provider|
       provider.taxonomies.each do |taxonomy|
-        a << [provider.npi, provider.name, taxonomy.code, taxonomy.desc, classification(taxonomy.code), specialization(taxonomy.code)]
+        next if @primary_only && !taxonomy.primary
+        a << [provider.npi, provider.name, taxonomy.code, taxonomy.desc, classification(taxonomy.code), specialization(taxonomy.code), taxonomy.primary]
       end
       a
     end
   end
 
   def headings
-    %w[NPI NAME CODE DESC CLASSIFICATION SPECIALIZATION]
+    %w[NPI NAME CODE DESC CLASSIFICATION SPECIALIZATION PRIMARY]
   end
 
   private

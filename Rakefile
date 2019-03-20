@@ -62,9 +62,9 @@ end
 desc 'report'
 task :report => [NPI_LIST, CACHED_DIR, LOG_DIR, TAXONOMY_DATA] do
   logger = Logger.new(LOG_DIR + 'npi_registry.log')
-  npi_list = IO.readlines(NPI_LIST).map(&:chomp).first(1)
+  npi_list = IO.readlines(NPI_LIST).map(&:chomp).first(10)
   providers = npi_list.map {|npi| NPIRegistry.provider(npi: npi, cached_dir: CACHED_DIR, logger: logger)}
   taxonomy_data = YAML.load_file(TAXONOMY_DATA)
-  report = Report.new(providers: providers, taxonomy_data: taxonomy_data)
+  report = Report.new(providers: providers, taxonomy_data: taxonomy_data, primary_only: true)
   puts Terminal::Table.new(rows: report.rows, headings: report.headings)
 end
