@@ -22,23 +22,22 @@ directory LOG_DIR
 directory CONFIG_DIR
 
 NPI_LIST = INPUT_DIR + 'npi_list.txt'
-NUCC_URI = 'http://nucc.org/images/stories/CSV/nucc_taxonomy_190.csv'
+NUCC_URI = 'http://nucc.org/images/stories/CSV/nucc_taxonomy_191.csv'
 TAXONOMY_DATA = CONFIG_DIR + 'taxonomy.yml'
-
 
 file NPI_LIST => INPUT_DIR do
   RakeFileUtils.touch NPI_LIST
 end
 
 file TAXONOMY_DATA => CONFIG_DIR do
-  CSV.open(TMP_DIR + 'nucc_taxonomy_190.csv', :headers => true) do |csv|
+  CSV.open(TMP_DIR + Pathname(NUCC_URI).basename, :headers => true) do |csv|
     data = csv.inject(Hash.new) do |h, row|
       code, grouping, classification, specialization, definition, notes = row['Code'], row['Grouping'], row['Classification'], row['Specialization'], row['Definition'], row['Notes']
       raise "#{code} is already defined" unless h[code].nil?
       h[code] = {grouping: grouping, classification: classification, specialization: specialization, definition: definition, notes: notes}
       h
     end
-    File.open(TAXONOMY_DATA, 'w') {|f| f.puts data.to_yaml}
+    File.open(TAXONOMY_DATA, 'w') { |f| f.puts data.to_yaml }
   end
 end
 
@@ -47,7 +46,7 @@ namespace :download do
   task :provider => [NPI_LIST, CACHED_DIR, LOG_DIR] do
     logger = Logger.new(LOG_DIR + 'npi_registry.log')
     npi_list = IO.readlines(NPI_LIST).map(&:chomp).first(1)
-    npi_list.each {|npi| NPIRegistry.provider(npi: npi, cached_dir: CACHED_DIR, logger: logger)}
+    npi_list.each { |npi| NPIRegistry.provider(npi: npi, cached_dir: CACHED_DIR, logger: logger) }
   end
 
   desc 'download health care provider taxonomy code set'
@@ -55,16 +54,19 @@ namespace :download do
     uri = URI(NUCC_URI)
     resource = HTTP.get(uri)
     file = Pathname(uri.path)
-    File.open(TMP_DIR + file.basename, 'w') {|f| f.puts resource}
+    File.open(TMP_DIR + file.basename, 'w') { |f| f.puts resource }
   end
 end
 
 desc 'report'
 task :report => [NPI_LIST, CACHED_DIR, LOG_DIR, TAXONOMY_DATA] do
   logger = Logger.new(LOG_DIR + 'npi_registry.log')
-  npi_list = IO.readlines(NPI_LIST).map(&:chomp).first(10)
-  providers = npi_list.map {|npi| NPIRegistry.provider(npi: npi, cached_dir: CACHED_DIR, logger: logger)}
+  npi_list = IO.readlines(NPI_LIST).map(&:chomp)
+  providers = npi_list.map { |npi| NPIRegistry.provider(npi: npi, cached_dir: CACHED_DIR, logger: logger) }
+  puts ['Providers:', providers.size].join(' ')
   taxonomy_data = YAML.load_file(TAXONOMY_DATA)
-  report = Report.new(providers: providers, taxonomy_data: taxonomy_data, primary_only: true)
-  puts Terminal::Table.new(rows: report.rows, headings: report.headings)
+  report = Report.new(providers: providers, taxonomy_data: taxonomy_data, primary_only: false, logger: logger)
+  File.open(TMP_DIR + "taxonomy_#{Date.today.strftime('%Y%m%d')}.txt", 'w') do |f|
+    f.puts Terminal::Table.new(rows: report.rows, headings: report.headings)
+  end
 end
